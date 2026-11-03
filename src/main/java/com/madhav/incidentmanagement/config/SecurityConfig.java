@@ -11,7 +11,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
-    // Allows public registration and health checks while protecting other APIs.
+    // Allows registration, health checks, and Swagger documentation while protecting business APIs.
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http) throws Exception {
@@ -21,12 +21,26 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/register").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+
+                        // Allows the Swagger UI and its generated API documentation.
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml"
+                        ).permitAll()
+
+                        // Only ADMIN users can update incident status or assignment.
                         .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/v1/incidents/*/status"
                         ).hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/incidents/*/assign/*")
-                        .hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/incidents/*/assign/*"
+                        ).hasRole("ADMIN")
+
+                        // All other endpoints still require authentication.
                         .anyRequest().authenticated()
                 )
                 .httpBasic(Customizer.withDefaults());
