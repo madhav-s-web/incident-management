@@ -1,21 +1,26 @@
+
 package com.madhav.incidentmanagement;
+
 import com.madhav.incidentmanagement.entity.Incident;
-        import com.madhav.incidentmanagement.entity.ServiceEntity;
-        import com.madhav.incidentmanagement.repository.IncidentRepository;
-        import com.madhav.incidentmanagement.repository.ServiceRepository;
-        import org.junit.jupiter.api.Test;
-        import org.springframework.beans.factory.annotation.Autowired;
-        import org.springframework.boot.test.context.SpringBootTest;
-        import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-        import org.springframework.http.MediaType;
-        import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-        import org.springframework.test.web.servlet.MockMvc;
+import com.madhav.incidentmanagement.entity.ServiceEntity;
+import com.madhav.incidentmanagement.entity.User;
+import com.madhav.incidentmanagement.repository.IncidentRepository;
+import com.madhav.incidentmanagement.repository.ServiceRepository;
+import com.madhav.incidentmanagement.repository.UserRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.test.web.servlet.MockMvc;
 
-        import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-        import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-        import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-        import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+// Tests incident API endpoints, validation, authorization, and business rules.
 @SpringBootTest
 @AutoConfigureMockMvc
 class IncidentControllerTest {
@@ -25,24 +30,31 @@ class IncidentControllerTest {
 
     @Autowired
     private IncidentRepository incidentRepository;
+
     @Autowired
     private ServiceRepository serviceRepository;
 
+    @Autowired
+    private UserRepository userRepository;
 
+    // Verifies that unauthenticated users cannot view incidents.
     @Test
     void unauthenticatedUserCannotViewIncidents() throws Exception {
         mockMvc.perform(get("/api/v1/incidents"))
                 .andExpect(status().isUnauthorized());
     }
 
+    // Verifies that a VIEWER can view incidents.
     @Test
     void viewerCanViewIncidents() throws Exception {
-        mockMvc.perform(get("/api/v1/incidents")
+        mockMvc.perform(
+                get("/api/v1/incidents")
                         .with(SecurityMockMvcRequestPostProcessors.user("madhav")
-                                .roles("VIEWER")))
-                .andExpect(status().isOk());
+                                .roles("VIEWER"))
+        ).andExpect(status().isOk());
     }
 
+    // Verifies that a VIEWER cannot update incident status.
     @Test
     void viewerCannotUpdateIncidentStatus() throws Exception {
         mockMvc.perform(
@@ -52,14 +64,9 @@ class IncidentControllerTest {
         ).andExpect(status().isForbidden());
     }
 
-
-
-
-// Verifies that an ADMIN can acknowledge a newly created OPEN incident.
+    // Verifies that an ADMIN can acknowledge a newly created OPEN incident.
     @Test
     void adminCanUpdateIncidentStatus() throws Exception {
-
-        // Create a unique service to avoid conflicts with existing database records.
         ServiceEntity service = new ServiceEntity();
         service.setName("admin-status-test-" + java.util.UUID.randomUUID());
         service.setDescription("Service for status update test");
@@ -67,27 +74,24 @@ class IncidentControllerTest {
 
         ServiceEntity savedService = serviceRepository.save(service);
 
-        // Create an incident whose initial status is OPEN.
         Incident incident = new Incident();
         incident.setTitle("Admin status update test");
         incident.setSeverity("HIGH");
+        incident.setStatus("OPEN");
         incident.setService(savedService);
 
         Incident savedIncident = incidentRepository.save(incident);
 
-        // Request the valid transition OPEN -> ACKNOWLEDGED as an ADMIN.
         mockMvc.perform(
                 patch("/api/v1/incidents/" + savedIncident.getId() + "/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"ACKNOWLEDGED\"}")
-                        .with(
-                                SecurityMockMvcRequestPostProcessors.user("admin")
-                                        .roles("ADMIN")
-                        )
+                        .with(SecurityMockMvcRequestPostProcessors.user("admin")
+                                .roles("ADMIN"))
         ).andExpect(status().isOk());
     }
 
-
+    // Verifies that unauthenticated users cannot update incident status.
     @Test
     void unauthenticatedUserCannotUpdateIncidentStatus() throws Exception {
         mockMvc.perform(
@@ -97,14 +101,7 @@ class IncidentControllerTest {
         ).andExpect(status().isUnauthorized());
     }
 
-
-
-
-
-    /*
-     * Verifies that a user with the VIEWER role can create an incident
-     * using a newly created service, avoiding conflicts with existing incidents.
-     */
+    // Verifies that a VIEWER can create an incident for a new service.
     @Test
     void viewerCanCreateIncident() throws Exception {
         ServiceEntity service = new ServiceEntity();
@@ -116,28 +113,22 @@ class IncidentControllerTest {
         ServiceEntity savedService = serviceRepository.save(service);
 
         mockMvc.perform(
-                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                                .post("/api/v1/incidents")
-                                .with(
-                                        org.springframework.security.test.web.servlet.request
-                                                .SecurityMockMvcRequestPostProcessors
-                                                .user("madhav")
-                                                .roles("VIEWER")
-                                )
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("""
-                                    {
-                                        "title": "Database outage",
-                                        "severity": "HIGH",
-                                        "serviceId": %d
-                                    }
-                                    """.formatted(savedService.getId()))
-                )
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .status().isOk());
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/v1/incidents")
+                        .with(SecurityMockMvcRequestPostProcessors.user("madhav")
+                                .roles("VIEWER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "title": "Database outage",
+                                    "severity": "HIGH",
+                                    "serviceId": %d
+                                }
+                                """.formatted(savedService.getId()))
+        ).andExpect(status().isOk());
     }
 
-
+    // Verifies that invalid incident severity is rejected.
     @Test
     void viewerCannotCreateIncidentWithInvalidSeverity() throws Exception {
         mockMvc.perform(
@@ -156,6 +147,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
+    // Verifies that requesting a nonexistent incident returns 404.
     @Test
     void requestingNonexistentIncidentReturnsNotFound() throws Exception {
         mockMvc.perform(
@@ -165,6 +157,7 @@ class IncidentControllerTest {
         ).andExpect(status().isNotFound());
     }
 
+    // Verifies that updating a nonexistent incident returns 404.
     @Test
     void updatingNonexistentIncidentReturnsNotFound() throws Exception {
         mockMvc.perform(
@@ -176,6 +169,7 @@ class IncidentControllerTest {
         ).andExpect(status().isNotFound());
     }
 
+    // Verifies that a VIEWER can filter incidents by status.
     @Test
     void viewerCanFilterIncidentsByStatus() throws Exception {
         mockMvc.perform(
@@ -185,6 +179,7 @@ class IncidentControllerTest {
         ).andExpect(status().isOk());
     }
 
+    // Verifies that a VIEWER can retrieve paginated incidents.
     @Test
     void viewerCanGetIncidentsWithPagination() throws Exception {
         mockMvc.perform(
@@ -197,7 +192,7 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.number").value(0));
     }
 
-    // Tests that creating an incident without a title returns 400 Bad Request.
+    // Verifies that creating an incident without a title returns 400.
     @Test
     void viewerCannotCreateIncidentWithoutTitle() throws Exception {
         mockMvc.perform(
@@ -216,7 +211,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Tests that creating an incident without a service ID returns 400 Bad Request.
+    // Verifies that creating an incident without a service ID returns 400.
     @Test
     void viewerCannotCreateIncidentWithoutServiceId() throws Exception {
         mockMvc.perform(
@@ -234,7 +229,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Tests that an invalid incident status returns 400 Bad Request.
+    // Verifies that an invalid incident status returns 400.
     @Test
     void adminCannotUpdateIncidentWithInvalidStatus() throws Exception {
         mockMvc.perform(
@@ -246,7 +241,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Tests that filtering by status returns a JSON array.
+    // Verifies that filtering by status returns a JSON array.
     @Test
     void filteringIncidentsByStatusReturnsJsonArray() throws Exception {
         mockMvc.perform(
@@ -259,7 +254,7 @@ class IncidentControllerTest {
                         .content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
     }
 
-    // Verifies that combined incident filters are accepted.
+    // Verifies that combined status and severity filters are accepted.
     @Test
     void viewerCanFilterIncidentsByStatusAndSeverity() throws Exception {
         mockMvc.perform(
@@ -272,7 +267,7 @@ class IncidentControllerTest {
                         .content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
     }
 
-    // Verifies that an invalid severity filter returns 400 Bad Request.
+    // Verifies that an invalid severity filter is rejected.
     @Test
     void viewerCannotFilterByInvalidSeverity() throws Exception {
         mockMvc.perform(
@@ -282,7 +277,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Verifies that an unsupported incident status filter returns 400 Bad Request.
+    // Verifies that an unsupported status filter is rejected.
     @Test
     void viewerCannotFilterByInvalidStatus() throws Exception {
         mockMvc.perform(
@@ -292,7 +287,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Verifies that a non-positive service ID is rejected.
+    // Verifies that a non-positive service ID in a filter is rejected.
     @Test
     void viewerCannotFilterByInvalidServiceId() throws Exception {
         mockMvc.perform(
@@ -302,7 +297,7 @@ class IncidentControllerTest {
         ).andExpect(status().isBadRequest());
     }
 
-    // Verifies that an invalid severity filter returns the expected error message.
+    // Verifies that an invalid severity filter returns its expected message.
     @Test
     void invalidSeverityFilterReturnsErrorMessage() throws Exception {
         mockMvc.perform(
@@ -324,11 +319,36 @@ class IncidentControllerTest {
         ).andExpect(status().isForbidden());
     }
 
-    // Verifies that an ADMIN can assign an incident successfully.
+    // Verifies that an ADMIN can assign an incident to an existing user.
     @Test
     void adminCanAssignIncident() throws Exception {
+        ServiceEntity service = new ServiceEntity();
+        service.setName("admin-assign-test-" + java.util.UUID.randomUUID());
+        service.setDescription("Service for assignment test");
+        service.setStatus("UP");
+
+        ServiceEntity savedService = serviceRepository.save(service);
+
+        Incident incident = new Incident();
+        incident.setTitle("Admin assignment test");
+        incident.setSeverity("HIGH");
+        incident.setStatus("OPEN");
+        incident.setService(savedService);
+
+        Incident savedIncident = incidentRepository.save(incident);
+
+        User targetUser = new User();
+        targetUser.setUsername(
+                "assignment-target-" + java.util.UUID.randomUUID()
+        );
+        targetUser.setPassword("test-password");
+        targetUser.setRole("VIEWER");
+
+        User savedUser = userRepository.save(targetUser);
+
         mockMvc.perform(
-                patch("/api/v1/incidents/11/assign/2")
+                patch("/api/v1/incidents/" + savedIncident.getId()
+                        + "/assign/" + savedUser.getId())
                         .with(SecurityMockMvcRequestPostProcessors.user("madhav")
                                 .roles("ADMIN"))
         ).andExpect(status().isOk());
@@ -337,26 +357,67 @@ class IncidentControllerTest {
     // Verifies that assigning an incident to a nonexistent user returns 404.
     @Test
     void adminCannotAssignIncidentToNonexistentUser() throws Exception {
+        ServiceEntity service = new ServiceEntity();
+        service.setName("missing-user-test-" + java.util.UUID.randomUUID());
+        service.setDescription("Service for missing-user assignment test");
+        service.setStatus("UP");
+
+        ServiceEntity savedService = serviceRepository.save(service);
+
+        Incident incident = new Incident();
+        incident.setTitle("Missing user assignment test");
+        incident.setSeverity("HIGH");
+        incident.setStatus("OPEN");
+        incident.setService(savedService);
+
+        Incident savedIncident = incidentRepository.save(incident);
+
         mockMvc.perform(
-                patch("/api/v1/incidents/11/assign/99999")
+                patch("/api/v1/incidents/" + savedIncident.getId()
+                        + "/assign/99999")
                         .with(SecurityMockMvcRequestPostProcessors.user("madhav")
                                 .roles("ADMIN"))
         ).andExpect(status().isNotFound());
     }
 
-    // Verifies that assigning a nonexistent incident returns 404 Not Found.
+    // Verifies that assigning a nonexistent incident returns 404.
     @Test
     void adminCannotAssignNonexistentIncident() throws Exception {
+        User targetUser = new User();
+        targetUser.setUsername(
+                "nonexistent-incident-target-" + java.util.UUID.randomUUID()
+        );
+        targetUser.setPassword("test-password");
+        targetUser.setRole("VIEWER");
+
+        User savedUser = userRepository.save(targetUser);
+
         mockMvc.perform(
-                patch("/api/v1/incidents/99999/assign/2")
+                patch("/api/v1/incidents/99999/assign/" + savedUser.getId())
                         .with(SecurityMockMvcRequestPostProcessors.user("madhav")
                                 .roles("ADMIN"))
         ).andExpect(status().isNotFound());
     }
 
-    // Verifies that duplicate OPEN incidents for one service are rejected.
+    // Verifies that creating a second OPEN incident for one service returns 409.
     @Test
     void cannotCreateSecondOpenIncidentForSameService() throws Exception {
+        ServiceEntity service = new ServiceEntity();
+        service.setName("duplicate-open-test-" + java.util.UUID.randomUUID());
+        service.setDescription("Service for duplicate incident test");
+        service.setStatus("UP");
+
+        ServiceEntity savedService = serviceRepository.save(service);
+
+        // Explicitly save the first incident as OPEN to test the duplicate rule.
+        Incident existingIncident = new Incident();
+        existingIncident.setTitle("Existing open incident");
+        existingIncident.setSeverity("HIGH");
+        existingIncident.setStatus("OPEN");
+        existingIncident.setService(savedService);
+
+        incidentRepository.save(existingIncident);
+
         mockMvc.perform(
                         org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                                 .post("/api/v1/incidents")
@@ -364,12 +425,12 @@ class IncidentControllerTest {
                                         .roles("VIEWER"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
-                                        {
-                                            "title": "Duplicate open incident",
-                                            "severity": "HIGH",
-                                            "serviceId": 1
-                                        }
-                                        """)
+                                {
+                                    "title": "Duplicate open incident",
+                                    "severity": "HIGH",
+                                    "serviceId": %d
+                                }
+                                """.formatted(savedService.getId()))
                 )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error")

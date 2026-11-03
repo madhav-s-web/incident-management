@@ -1,24 +1,27 @@
 
-        package com.madhav.incidentmanagement.service;
+package com.madhav.incidentmanagement.service;
 
-        import com.madhav.incidentmanagement.entity.AuditLog;
-        import com.madhav.incidentmanagement.entity.Incident;
-        import com.madhav.incidentmanagement.entity.ServiceEntity;
-        import com.madhav.incidentmanagement.entity.User;
-        import com.madhav.incidentmanagement.exception.ResourceNotFoundException;
-        import com.madhav.incidentmanagement.repository.AuditLogRepository;
-        import com.madhav.incidentmanagement.repository.IncidentRepository;
-        import com.madhav.incidentmanagement.repository.ServiceRepository;
-        import com.madhav.incidentmanagement.repository.UserRepository;
-        import org.springframework.data.domain.Page;
-        import org.springframework.data.domain.Pageable;
-        import org.springframework.security.core.context.SecurityContextHolder;
-        import org.springframework.stereotype.Service;
-        import org.springframework.transaction.annotation.Transactional;
+import com.madhav.incidentmanagement.entity.AuditLog;
+import com.madhav.incidentmanagement.entity.Incident;
+import com.madhav.incidentmanagement.entity.ServiceEntity;
+import com.madhav.incidentmanagement.entity.User;
+import com.madhav.incidentmanagement.exception.ResourceNotFoundException;
+import com.madhav.incidentmanagement.repository.AuditLogRepository;
+import com.madhav.incidentmanagement.repository.IncidentRepository;
+import com.madhav.incidentmanagement.repository.ServiceRepository;
+import com.madhav.incidentmanagement.repository.UserRepository;
 
-        import java.time.LocalDateTime;
-        import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+// Implements business logic for incident creation, updates, assignment, and retrieval.
 @Service
 public class IncidentService {
 
@@ -27,8 +30,7 @@ public class IncidentService {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
 
-    // Injects the repositories required for incidents, services,
-    // audit history, and finding users for incident assignment.
+    // Injects repositories required for incident, service, audit, and user operations.
     public IncidentService(
             IncidentRepository incidentRepository,
             ServiceRepository serviceRepository,
@@ -41,12 +43,20 @@ public class IncidentService {
         this.userRepository = userRepository;
     }
 
-    // Creates a new incident associated with an existing service.
+    // Creates an incident only if its service has no existing OPEN incident.
+    @Transactional
     public Incident createIncident(String title, String severity, Long serviceId) {
 
         ServiceEntity service = serviceRepository.findById(serviceId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Service not found"));
+
+        // Rejects a second OPEN incident for the same service with HTTP 409.
+        if (incidentRepository.findByServiceIdAndStatus(serviceId, "OPEN").isPresent()) {
+            throw new DataIntegrityViolationException(
+                    "An open incident already exists for this service"
+            );
+        }
 
         Incident incident = new Incident();
         incident.setTitle(title);
@@ -56,8 +66,7 @@ public class IncidentService {
         return incidentRepository.save(incident);
     }
 
-    // Assigns an incident to an existing registered user.
-    // Records the assignment in the audit history.
+    // Assigns an incident to an existing user and records the assignment in audit history.
     @Transactional
     public Incident assignIncident(Long incidentId, Long userId) {
 
@@ -69,13 +78,13 @@ public class IncidentService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
 
-        // Avoid creating a duplicate audit entry for the same assignment.
+        // Avoids creating a duplicate audit entry for the same assignment.
         if (incident.getAssignedTo() != null &&
                 incident.getAssignedTo().getId().equals(userId)) {
             return incident;
         }
 
-        // Store the previous assignee for the audit log.
+        // Stores the previous assignee for the audit log.
         String oldValue = incident.getAssignedTo() == null
                 ? null
                 : incident.getAssignedTo().getUsername();
@@ -101,7 +110,7 @@ public class IncidentService {
         return savedIncident;
     }
 
-    // Updates an incident's status and records the change in the audit history.
+    // Updates an incident's status and records the change in audit history.
     @Transactional
     public Incident updateIncidentStatus(Long id, String status) {
 
@@ -139,9 +148,9 @@ public class IncidentService {
         return savedIncident;
     }
 
-
     // Validates whether an incident can transition to its requested status.
     private void validateStatusTransition(String currentStatus, String newStatus) {
+
         boolean valid =
                 (currentStatus.equals("OPEN")
                         && (newStatus.equals("ACKNOWLEDGED")
@@ -194,11 +203,11 @@ public class IncidentService {
                 status, severity, serviceId, assignedTo
         );
     }
+
     // Returns a page of incidents using the requested pagination settings.
     public Page<Incident> getIncidents(Pageable pageable) {
         return incidentRepository.findAll(pageable);
     }
-
 
     // Returns incidents for the requested page.
     public Page<Incident> getIncidentsWithPagination(Pageable pageable) {

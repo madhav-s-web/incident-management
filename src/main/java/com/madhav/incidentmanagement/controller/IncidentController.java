@@ -53,7 +53,7 @@ public class IncidentController {
             String status
     ) {}
 
-    // Returns incidents matching any supplied filters.
+    // Returns incidents matching the supplied filters.
     @GetMapping
     public List<Incident> getAllIncidents(
             @RequestParam(required = false) String status,
@@ -61,13 +61,13 @@ public class IncidentController {
             @RequestParam(required = false) Long serviceId,
             @RequestParam(required = false) Long assignedTo) {
 
-        // Rejects unsupported severity values in incident filters.
+        // Rejects unsupported severity values.
         if (severity != null &&
                 !List.of("LOW", "MEDIUM", "HIGH", "CRITICAL").contains(severity)) {
             throw new IllegalArgumentException("Invalid severity filter");
         }
 
-        // Rejects unsupported status values in incident filters.
+        // Rejects unsupported status values.
         if (status != null &&
                 !List.of("OPEN", "ACKNOWLEDGED", "RESOLVED").contains(status)) {
             throw new IllegalArgumentException("Invalid status filter");
@@ -102,19 +102,19 @@ public class IncidentController {
         return incidentService.getIncidentsWithPagination(pageable);
     }
 
-    // Returns a specific incident by its ID.
+    // Returns an incident by its ID.
     @GetMapping("/{id}")
     public Incident getIncidentById(@PathVariable Long id) {
         return incidentService.getIncidentById(id);
     }
 
-    // Returns the audit history for a specific incident.
+    // Returns the audit history for an incident.
     @GetMapping("/{id}/audit")
     public List<AuditLog> getAuditHistory(@PathVariable Long id) {
         return incidentService.getAuditHistory(id);
     }
 
-    // Assigns an incident to a user using their user ID.
+    // Assigns an incident to a user.
     @PatchMapping("/{incidentId}/assign/{userId}")
     public Incident assignIncident(
             @PathVariable Long incidentId,
@@ -122,13 +122,13 @@ public class IncidentController {
         return incidentService.assignIncident(incidentId, userId);
     }
 
-    // Returns all incidents matching the requested status.
+    // Returns incidents matching a specified status.
     @GetMapping("/status/{status}")
     public List<Incident> getIncidentsByStatus(@PathVariable String status) {
         return incidentService.getIncidentsByStatus(status);
     }
 
-    // Updates an incident's status using a validated JSON request body.
+    // Updates an incident's status using a validated request body.
     @PatchMapping("/{id}/status")
     public Incident updateIncidentStatus(
             @PathVariable Long id,
