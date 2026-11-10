@@ -7,21 +7,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Configures the production HTTPS server URL displayed in Swagger UI.
+ * Configures the production server URL displayed in Swagger UI.
  */
 @Configuration
 public class OpenApiConfig {
 
         /**
-         * Registers the production API server in the OpenAPI document.
-         *
-         * @return the configured OpenAPI instance
+         * Returns the OpenAPI configuration with the HTTPS production URL.
          */
         @Bean
         public OpenAPI customOpenAPI() {
                 return new OpenAPI()
-                        .addServersItem(new Server()
-                                .url("https://incident-management-production.up.railway.app")
-                                .description("Production server"));
+                        .addServersItem(
+                                new Server()
+                                        .url("https://incident-management-production.up.railway.app")
+                                        .description("Production server")
+                        );
         }
 }
