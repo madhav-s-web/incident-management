@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -58,6 +59,17 @@ public class GlobalExceptionHandler {
                         // reason (e.g. "Duplicate entry 'Payment' for key 'services.name'").
                         ex.getMostSpecificCause().getMessage()
                 ));
+    }
+
+    // Returns HTTP 400 when the request body is not valid JSON
+    // or a field has the wrong type (e.g. "serviceId": "abc").
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleUnreadableBody(
+            HttpMessageNotReadableException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "Request body is not valid JSON or has a wrong field type"));
     }
 
     // Catches anything not handled above, logs the full stack trace,
